@@ -1,0 +1,43 @@
+"use client";
+
+import { standCoordinates, MAP_WIDTH, MAP_HEIGHT } from "@/data/standCoordinates";
+import { StandPolygon } from "./StandPolygon";
+import { StandDocument } from "@/types/stand";
+import { calculateOverallProgress, getStandStatus } from "@/lib/utils";
+
+interface MapSvgOverlayProps {
+  stands: StandDocument[];
+  selectedStandId: number | null;
+  onStandClick: (id: number) => void;
+}
+
+export function MapSvgOverlay({ stands, selectedStandId, onStandClick }: MapSvgOverlayProps) {
+  const standsMap = new Map(stands.map((s) => [s.id, s]));
+
+  return (
+    <svg
+      viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+      className="absolute inset-0 w-full h-full"
+      style={{ pointerEvents: "none" }}
+    >
+      {standCoordinates.map((sc) => {
+        const standData = standsMap.get(sc.id);
+        const progress = standData ? calculateOverallProgress(standData.checklist) : 0;
+        const status = getStandStatus(progress);
+        const label = standData?.label || sc.label || `Stand ${sc.id}`;
+
+        return (
+          <StandPolygon
+            key={sc.id}
+            id={sc.id}
+            coords={sc.coords}
+            label={label}
+            status={status}
+            isSelected={selectedStandId === sc.id}
+            onClick={onStandClick}
+          />
+        );
+      })}
+    </svg>
+  );
+}
