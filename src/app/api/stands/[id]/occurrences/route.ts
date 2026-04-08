@@ -3,6 +3,34 @@ import { cookies } from 'next/headers'
 import { queryD1 } from '@/lib/cloudflare/d1'
 import { getAuthFromCookies } from '@/lib/auth'
 
+type OccRow = {
+  id: number
+  stand_id: number
+  title: string
+  description: string
+  priority: string
+  resolved: number
+  created_at: string
+  created_by: string
+  resolved_at: string | null
+  resolved_by: string | null
+}
+
+function mapOcc(o: OccRow) {
+  return {
+    id: o.id,
+    standId: o.stand_id,
+    title: o.title,
+    description: o.description,
+    priority: o.priority,
+    status: o.resolved ? 'resolvida' : 'aberta',
+    createdAt: o.created_at,
+    createdBy: o.created_by,
+    resolvedAt: o.resolved_at,
+    resolvedBy: o.resolved_by,
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,32 +46,20 @@ export async function GET(
     const { id } = await params
     const allStands = request.nextUrl.searchParams.get('all') === 'true'
 
-    let occurrences
+    let occurrences: OccRow[]
     if (allStands) {
-      // Dashboard mode: get ALL occurrences across all stands
-      occurrences = await queryD1<{ id: number; stand_id: number; title: string; description: string; priority: string; status: string; created_at: string; created_by: string; resolved_at: string | null; resolved_by: string | null }>(
-        'SELECT id, stand_id, title, description, priority, status, created_at, created_by, resolved_at, resolved_by FROM occurrences ORDER BY created_at DESC'
+      occurrences = await queryD1<OccRow>(
+        'SELECT id, stand_id, title, description, priority, resolved, created_at, created_by, resolved_at, resolved_by FROM occurrences ORDER BY created_at DESC'
       )
     } else {
-      occurrences = await queryD1<{ id: number; stand_id: number; title: string; description: string; priority: string; status: string; created_at: string; created_by: string; resolved_at: string | null; resolved_by: string | null }>(
-        'SELECT id, stand_id, title, description, priority, status, created_at, created_by, resolved_at, resolved_by FROM occurrences WHERE stand_id = ? ORDER BY created_at DESC',
+      occurrences = await queryD1<OccRow>(
+        'SELECT id, stand_id, title, description, priority, resolved, created_at, created_by, resolved_at, resolved_by FROM occurrences WHERE stand_id = ? ORDER BY created_at DESC',
         [id]
       )
     }
 
     return Response.json({
-      occurrences: occurrences.map((o) => ({
-        id: o.id,
-        standId: o.stand_id,
-        title: o.title,
-        description: o.description,
-        priority: o.priority,
-        status: o.status,
-        createdAt: o.created_at,
-        createdBy: o.created_by,
-        resolvedAt: o.resolved_at,
-        resolvedBy: o.resolved_by,
-      })),
+      occurrences: occurrences.map(mapOcc),
     })
   } catch (error) {
     console.error('Occurrences GET error:', error)
@@ -88,32 +104,16 @@ export async function POST(
     const now = new Date().toISOString()
 
     await queryD1(
-      'INSERT INTO occurrences (stand_id, title, description, priority, status, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, title, description, priority, 'aberta', now, auth.email]
+      'INSERT INTO occurrences (stand_id, title, description, priority, resolved, created_at, created_by) VALUES (?, ?, ?, ?, 0, ?, ?)',
+      [id, title, description, priority, now, auth.email]
     )
 
-    // Return the newly created occurrence
-    const rows = await queryD1<{ id: number; stand_id: number; title: string; description: string; priority: string; status: string; created_at: string; created_by: string; resolved_at: string | null; resolved_by: string | null }>(
-      'SELECT id, stand_id, title, description, priority, status, created_at, created_by, resolved_at, resolved_by FROM occurrences WHERE stand_id = ? ORDER BY id DESC LIMIT 1',
+    const rows = await queryD1<OccRow>(
+      'SELECT id, stand_id, title, description, priority, resolved, created_at, created_by, resolved_at, resolved_by FROM occurrences WHERE stand_id = ? ORDER BY id DESC LIMIT 1',
       [id]
     )
 
-    const occurrence = rows[0]
-
-    return Response.json({
-      occurrence: {
-        id: occurrence.id,
-        standId: occurrence.stand_id,
-        title: occurrence.title,
-        description: occurrence.description,
-        priority: occurrence.priority,
-        status: occurrence.status,
-        createdAt: occurrence.created_at,
-        createdBy: occurrence.created_by,
-        resolvedAt: occurrence.resolved_at,
-        resolvedBy: occurrence.resolved_by,
-      },
-    }, { status: 201 })
+    return Response.json({ occurrence: mapOcc(rows[0]) }, { status: 201 })
   } catch (error) {
     console.error('Occurrences POST error:', error)
     return Response.json(
@@ -150,13 +150,13 @@ export async function PUT(
 
     if (resolved) {
       await queryD1(
-        'UPDATE occurrences SET status = ?, resolved_at = ?, resolved_by = ? WHERE id = ? AND stand_id = ?',
-        ['resolvida', now, auth.email, String(occurrenceId), id]
+        'UPDATE occurrences SET resolved = 1, resolved_at = ?, resolved_by = ? WHERE id = ? AND stand_id = ?',
+        [now, auth.email, String(occurrenceId), id]
       )
     } else {
       await queryD1(
-        'UPDATE occurrences SET status = ?, resolved_at = NULL, resolved_by = NULL WHERE id = ? AND stand_id = ?',
-        ['aberta', String(occurrenceId), id]
+        'UPDATE occurrences SET resolved = 0, resolved_at = NULL, resolved_by = NULL WHERE id = ? AND stand_id = ?',
+        [String(occurrenceId), id]
       )
     }
 

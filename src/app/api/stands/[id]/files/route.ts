@@ -18,8 +18,8 @@ export async function GET(
     const { id } = await params
 
     const [files, driveLinks] = await Promise.all([
-      queryD1<{ id: number; name: string; url: string; storage_path: string; size: number; uploaded_at: string; uploaded_by: string }>(
-        'SELECT id, name, url, storage_path, size, uploaded_at, uploaded_by FROM files WHERE stand_id = ? ORDER BY uploaded_at DESC',
+      queryD1<{ id: number; filename: string; url: string; size: number; uploaded_at: string; uploaded_by: string }>(
+        'SELECT id, filename, url, size, uploaded_at, uploaded_by FROM files WHERE stand_id = ? ORDER BY uploaded_at DESC',
         [id]
       ),
       queryD1<{ id: number; title: string; url: string; added_at: string; added_by: string }>(
@@ -31,9 +31,9 @@ export async function GET(
     return Response.json({
       files: files.map((f) => ({
         id: f.id,
-        name: f.name,
+        name: f.filename,
         url: f.url,
-        storagePath: f.storage_path,
+        storagePath: '',
         size: f.size,
         uploadedAt: f.uploaded_at,
         uploadedBy: f.uploaded_by,
