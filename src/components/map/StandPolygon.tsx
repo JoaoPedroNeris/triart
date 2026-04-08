@@ -33,6 +33,7 @@ export function StandPolygon({ id, coords, label, status, isSelected, onClick }:
   return (
     <g
       className="cursor-pointer"
+      style={{ pointerEvents: "auto" }}
       onClick={() => onClick(id)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
